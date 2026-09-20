@@ -1,0 +1,196 @@
+What is an AI Model?
+=====================
+
+- A gigantic statistical file of numbers, called weights or parameters, stored on a disk or in memory.
+- Running an LLM will perform billions of standard multiplications and additions:
+
+      y = W * x + b
+
+  x -> input converted to numbers
+  W -> giant grid of numbers(the matrix of weights)
+  y -> predicted output.
+
+What is a "Parameter"?
+- "Llama-3-8B has 8 billion parameters" means the model file contains
+  8,000,000,000 decimal numbers.
+- Training feeding it data to adjust the parameters until the model becomes good at predicting
+  the next word.
+- Inference loads the numbers into memory to predict the next word for a user.
+
+Tokenization & Token Smuggling
+==============================
+Step 1: Characters to Tokens
+- Problem with ASCII character tokenization.
+  - Character-level tokenization would require too many calculations and make models painfully slow.
+  - Tokenizing every whole word would require a vocabulary containing millions of words
+    and it would fail on typos, new words, or slang.
+- The industry solves this with subword tokenization or Byte-Pair Encoding (BPE),
+  which is splitting text into reusable pieces. Model have a fixed vocabulary table. 
+  Common words may use one token, such as `" the" = 262`,
+  Rarer words are split into chunks, such as `"Antigravity"` =`["Anti", "grav", "ity"]`.
+
+  The Security Flaw: Token Smuggling & Filter Evasion
+  ----------------------------------------------------
+
+  - A WAF or input-checking script may block forbidden strings such as
+    `"drop database"`, `eval(`, or `exec(` with a simple substring check. Sample code:
+    
+    ++++++Code Segment starts
+    # A naive security check
+    FORBIDDEN_WORDS = ["drop database", "eval(", "exec("]
+
+    def is_safe(user_input):
+        for word in FORBIDDEN_WORDS:
+            if word in user_input.lower():
+                return False # Block the attack!
+        return True
+    ++++++Code Segment Ends
+    
+    - This fails because the WAF reads characters, while the LLM reads tokens.
+  **Technique A: Unicode and zero-width spaces**
+    1. An attacker can insert an invisible character such as `\u200B` into a
+      forbidden phrase.
+    2. The WAF sees a different byte sequence and may allow the input
+    3. LLM tokenizer may interpret it as the same semantic phrase 
+      after stripping or treating `\u200B` as byte fallback artifact. 
+      Hence executing malicious instruction.
+  **Technique B: Token boundary shifting**
+    - BPE tokenization changes when characters or punctuation are added.
+    - For example, `"Admin"` may map to `[9122]`, while `"/Admin"` may map to
+      `[15, 412]`.
+    - Attackers can exploit these different token boundaries to evade token-level filters.
+
+## The Attention Mechanism & KV Cache: Why Memory Explodes
+-----------------------------------------------------------
+
+### The Problem Before Transformers (RNNs)
+
+- Older AI processed text sequentially, reading one word at a time like reading a tape.
+- By word 500, it may have forgotten word 1. It could not look ahead or
+  process sentences in parallel.
+
+### The Transformer's Innovation: "Self-Attention"
+
+- Transformer looks at all words in a sentence at the same time.
+- For the sentence `"The bank of the river was muddy."`, the model must decide
+  whether `"bank"` means a financial institution or the side of a river.
+- It computes an attention score between `"bank"` and every other word.
+- The strong correlation between `"bank"` and `"river"` helps the model
+  interpret `"bank"` as the side of a river.
+
+The Security Attack: The "Sponge Attack" (Denial of Wallet / GPU Crash)
+-----------------------------------------------------------------------
+
+- The KV Cache is stored in expensive, rather than on a hard drive.
+- The memory formula is:
+
+      KV Cache Memory = 2 * Batch Size * Context Length * Layers
+                        * Heads * Head Dimension * Bytes per Number
+                       
+                       
+                    ANATOMY OF THE MEMORY MULTIPLICATION
+                       
+    [2]               Key vectors AND Value vectors (two separate sets)
+     ×
+    [Batch Size]      Number of independent users/requests running in parallel
+     ×
+    [Context Length]  Number of words/tokens in the conversation history
+     ×
+    [Layers]          Height of the neural network stack (each layer needs its own cache)
+     ×
+    [Heads]           Number of specialized attention viewpoints per layer
+     ×
+    [Head Dimension]  Length of the numerical vector for each head (e.g., 128 numbers)
+     ×
+    [Bytes per Number]Physical storage size per decimal number (e.g., 2 bytes for FP16)
+
+How the Model Chooses Words: Logits & Temperature
+==================================================
+
+- After all transformer math is complete, the model produces a list of raw
+  numbers called logits.
+- Each token in the vocabulary gets one logit value. A higher logit means the
+  model thinks that word is more likely to come next.
+- Example vocabulary:
+  - `"Apple"`
+  - `"Banana"`
+  - `"Bypass"`
+  - `"Refuse"`
+- Example logits:
+
+      [2.1, 0.5, -1.2, 8.4]
+
+- The model does not directly choose the highest value in a raw form; it passes
+  the logits through a softmax function, and temperature controls how sharp or
+  flat that distribution becomes.
+
+### Why Temperature Matters to Security
+
+- Safety training is done using RLHF - Reinforcement Learning from Human Feedback
+- And when a user asks "How do I make an explosive?"
+- Safety training can make a refusal token like `"I cannot fulfill this request"`
+  receive a very high logit, such as `+12.0`.
+- Dangerous tokens will receive a very low logit, such as `-5.0`.
+- If `Temperature = 0` (greedy decoding), the model must pick the highest logit,
+  so it will almost always refuse.
+- If `Temperature = 1.5` or `2.0`, the distribution becomes flatter, and lower-
+  probability options get a real chance to be selected.
+  This is why a model can sometimes ignore a safety refusal and generate harmful
+  content when the temperature is high.
+
+- Example:
+
+      Logits: [2.1, 0.5, -1.2, 8.4]
+
+      Temperature = 0.1 -> refusal dominates almost completely
+      Temperature = 1.5 -> lower-probability choices become possible
+
+- In other words, the model is not magically choosing the right answer; it is
+  sampling from a probability distribution controlled by the logits and the
+  temperature setting.
+
+Model File Formats: PyTorch Pickle vs. SafeTensors
+===================================================
+
+- When you download an AI model from the internet(e.g., Hugging Face), 
+  it is usually stored in a file that contains billions of numerical weights.
+- In the early days of PyTorch, many models were saved as `.pt`, `.pth`, or
+  `.bin` files using Python pickle.
+
+The Historic Nightmare: `.pt`, `.pth`, `.bin` (Python Pickle)
+
+- Python pickle is not just a data format; it is a stack-based virtual machine.
+- It serializes Python objects and reconstructs them when the file is opened.
+- The key opcode is `R` for `REDUCE`, which takes a callable and arguments and
+  then executes them.
+- That means a malicious model file can trigger arbitrary Python code during
+  unpickling.
+
+- This creates a serious supply-chain risk:
+  - An attacker uploads a malicious model to a model hub,
+  - the file is downloaded by an engineer or enterprise system,
+  - and the model loads hidden Python code automatically.
+
+- In other words, the file is not just weights; it may also contain instructions
+  that execute on import.
+
+### The Safe Fix: SafeTensors
+
+- SafeTensors was created to avoid this class of vulnerability.
+- It stores only raw tensor data in a simple, safe format.
+- It does not reconstruct Python objects and does not execute arbitrary code.
+- This makes it much safer for open-source distribution and enterprise model
+  deployment.
+
+- Today, many modern model repositories prefer SafeTensors because it is safer,
+  simpler, and much harder to weaponize.
++-----------------------------------------------------------------------+
+|                     SAFETENSORS FILE STRUCTURE                        |
+|                                                                       |
+|  [First 8 Bytes]  ──► 64-bit integer N (Size of the JSON header)      |
+|  [Next N Bytes]   ──► Strict UTF-8 JSON String (Names, shapes, offsets)|
+|  [Remaining Bytes]──► PURE RAW BINARY BYTES (Float numbers only)      |
++-----------------------------------------------------------------------+
+
+- Memory-Mapping (mmap): OS maps the file directly from disk into GPU memory.
+  No creating intermediate Python objects. Hence, It is immune to deserialization attacks.
