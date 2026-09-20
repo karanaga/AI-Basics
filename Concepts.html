@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Concepts Notes</title>
+  <style>
+    :root {
+      --bg: #f6f8fb;
+      --paper: #ffffff;
+      --ink: #1f2937;
+      --muted: #586575;
+      --line: #dfe6ee;
+      --accent: #2563eb;
+      --accent-soft: #eff6ff;
+      --code-bg: #0f172a;
+      --code-text: #e2e8f0;
+      --quote-bg: #f8fafc;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      line-height: 1.6;
+    }
+
+    .container {
+      max-width: 1100px;
+      margin: 40px auto;
+      padding: 0 20px 60px;
+    }
+
+    .page {
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      box-shadow: 0 12px 30px rgba(15, 23, 42, 0.06);
+      padding: 32px 28px;
+    }
+
+    h1 {
+      margin: 0 0 24px;
+      font-size: clamp(2rem, 3vw, 2.8rem);
+      line-height: 1.2;
+      color: var(--ink);
+    }
+
+    h2 {
+      margin-top: 32px;
+      margin-bottom: 16px;
+      font-size: clamp(1.5rem, 2vw, 2rem);
+      border-bottom: 2px solid var(--line);
+      padding-bottom: 8px;
+      color: var(--ink);
+    }
+
+    h3 {
+      margin-top: 24px;
+      margin-bottom: 12px;
+      font-size: 1.25rem;
+      color: var(--accent);
+    }
+
+    p, li {
+      font-size: 1rem;
+    }
+
+    ul, ol {
+      margin: 10px 0 18px 22px;
+      padding-left: 12px;
+    }
+
+    li + li {
+      margin-top: 8px;
+    }
+
+    strong {
+      color: #111827;
+    }
+
+    code {
+      background: #eef2ff;
+      border: 1px solid #dbe4ff;
+      border-radius: 6px;
+      padding: 2px 8px;
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+      font-size: 0.95em;
+    }
+
+    pre {
+      background: var(--code-bg);
+      color: var(--code-text);
+      padding: 16px 18px;
+      border-radius: 12px;
+      overflow-x: auto;
+      margin: 18px 0;
+      border: 1px solid #1e293b;
+    }
+
+    pre code {
+      background: transparent;
+      border: none;
+      padding: 0;
+      color: inherit;
+      font-size: 0.9em;
+    }
+
+    blockquote {
+      margin: 20px 0;
+      padding: 14px 18px;
+      background: var(--quote-bg);
+      border-left: 4px solid var(--accent);
+      border-radius: 10px;
+      color: var(--muted);
+    }
+
+    .section-note {
+      background: var(--accent-soft);
+      border: 1px solid #bfdbfe;
+      border-radius: 10px;
+      padding: 12px 14px;
+      margin: 14px 0;
+      color: #1e3a8a;
+    }
+
+    .subheading {
+      font-size: 1.05rem;
+      font-weight: 700;
+      margin-top: 12px;
+      margin-bottom: 8px;
+      color: var(--ink);
+    }
+
+    .inline-list {
+      display: inline;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .inline-list li {
+      display: inline-block;
+      margin-right: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <main class="page">
+      <h1>AI Learning Notes</h1>
+
+      <h2>What is an AI Model?</h2>
+      <ul>
+        <li>A gigantic statistical file of numbers, called weights or parameters, stored on a disk or in memory.</li>
+        <li>Running an LLM performs billions of standard multiplications and additions:</li>
+      </ul>
+      <pre><code>y = W * x + b</code></pre>
+      <p><strong>x</strong> → input converted to numbers<br />
+      <strong>W</strong> → giant grid of numbers (the matrix of weights)<br />
+      <strong>y</strong> → predicted output.</p>
+
+      <h2>What is a "Parameter"?</h2>
+      <ul>
+        <li>"Llama-3-8B has 8 billion parameters" means the model file contains 8,000,000,000 decimal numbers.</li>
+        <li>Training feeds the model data and adjusts these numbers until it becomes good at predicting the next word.</li>
+        <li>Inference loads the numbers into memory and uses them to predict the next word for a user.</li>
+      </ul>
+
+      <h2>Tokenization &amp; Token Smuggling</h2>
+
+      <h3>Step 1: Characters to Tokens</h3>
+      <ul>
+        <li>Problem with ASCII character tokenization.</li>
+        <li>Character-level tokenization would require too many calculations and make models painfully slow.</li>
+        <li>Tokenizing every whole word would require a vocabulary containing millions of words and would fail on typos, new words, or slang.</li>
+      </ul>
+      <p>The industry solves this with subword tokenization or Byte-Pair Encoding (BPE), which splits text into reusable pieces. Models have a fixed vocabulary table. Common words may use one token, such as <code>" the" = 262</code>, while rarer words are split into chunks, such as <code>"Antigravity" = ["Anti", "grav", "ity"]</code>.</p>
+
+      <h3>The Security Flaw: Token Smuggling &amp; Filter Evasion</h3>
+      <ul>
+        <li>A WAF or input-checking script may block forbidden strings such as <code>"drop database"</code>, <code>eval(</code>, or <code>exec(</code> with a simple substring check.</li>
+        <li>This fails because the WAF reads characters, while the LLM reads tokens.</li>
+      </ul>
+
+      <div class="section-note">
+        <strong>Technique A: Unicode and zero-width spaces</strong><br />
+        An attacker can insert an invisible character such as <code>\u200B</code> into a forbidden phrase. The WAF sees a different byte sequence and may allow the input, while the tokenizer may interpret it as the same semantic phrase.
+      </div>
+
+      <div class="section-note">
+        <strong>Technique B: Token boundary shifting</strong><br />
+        BPE tokenization changes when characters or punctuation are added. For example, <code>"Admin"</code> may map to <code>[9122]</code>, while <code>"/Admin"</code> may map to <code>[15, 412]</code>. Attackers can exploit these different token boundaries to evade token-level filters.
+      </div>
+
+      <h2>The Attention Mechanism &amp; KV Cache: Why Memory Explodes</h2>
+
+      <h3>The Problem Before Transformers (RNNs)</h3>
+      <ul>
+        <li>Older AI processed text sequentially, reading one word at a time like reading a tape.</li>
+        <li>By word 500, it may have forgotten word 1. It could not look ahead or process sentences in parallel.</li>
+      </ul>
+
+      <h3>The Transformer's Innovation: "Self-Attention"</h3>
+      <ul>
+        <li>A Transformer looks at all words in a sentence at the same time.</li>
+        <li>For the sentence <code>"The bank of the river was muddy."</code>, the model must decide whether <code>"bank"</code> means a financial institution or the side of a river.</li>
+        <li>It computes an attention score between <code>"bank"</code> and every other word.</li>
+        <li>The strong correlation between <code>"bank"</code> and <code>"river"</code> helps the model interpret <code>"bank"</code> as the side of a river.</li>
+      </ul>
+
+      <h2>The Security Attack: The "Sponge Attack" (Denial of Wallet / GPU Crash)</h2>
+      <ul>
+        <li>The KV Cache is stored in expensive high-speed GPU VRAM, such as the 80 GB of VRAM on an Nvidia H100, rather than on a hard drive.</li>
+        <li>The memory formula is:</li>
+      </ul>
+      <pre><code>KV Cache Memory = 2 * Batch Size * Context Length * Layers * Heads * Head Dimension * Bytes per Number</code></pre>
+      <p>For Llama-3-70B:</p>
+      <ul>
+        <li>Layers = 80</li>
+        <li>Heads = 8 (Grouped-Query Attention)</li>
+        <li>Head Dimension = 128</li>
+        <li>Precision = 16-bit (2 bytes per number)</li>
+        <li>Context Length = 128,000 tokens</li>
+      </ul>
+      <pre><code>2 * 1 * 128,000 * 80 * 8 * 128 * 2
+≈ 41.9 GB of VRAM</code></pre>
+
+      <h2>How the Model Chooses Words: Logits &amp; Temperature</h2>
+      <ul>
+        <li>After all transformer math is complete, the model produces a list of raw numbers called logits.</li>
+        <li>Each token in the vocabulary gets one logit value. A higher logit means the model thinks that word is more likely to come next.</li>
+      </ul>
+      <p>Example vocabulary:</p>
+      <ul>
+        <li><code>"Apple"</code></li>
+        <li><code>"Banana"</code></li>
+        <li><code>"Bypass"</code></li>
+        <li><code>"Refuse"</code></li>
+      </ul>
+      <pre><code>[2.1, 0.5, -1.2, 8.4]</code></pre>
+
+      <h3>Why Temperature Matters to Security</h3>
+      <ul>
+        <li>Safety training is done using RLHF (Reinforcement Learning from Human Feedback).</li>
+        <li>When a user asks: <em>"How do I make an explosive?"</em>, safety training can make a refusal token like <code>"I cannot fulfill this request"</code> receive a very high logit, such as <code>+12.0</code>.</li>
+        <li>Dangerous tokens can receive a very low logit, such as <code>-5.0</code>.</li>
+        <li>If <code>Temperature = 0</code> (greedy decoding), the model must pick the highest logit, so it will almost always refuse.</li>
+        <li>If <code>Temperature = 1.5</code> or <code>2.0</code>, the distribution becomes flatter, and lower-probability options get a real chance to be selected.</li>
+        <li>This is why a model can sometimes ignore a safety refusal and generate harmful content when the temperature is high.</li>
+      </ul>
+      <pre><code>Logits: [2.1, 0.5, -1.2, 8.4]
+
+Temperature = 0.1 -> refusal dominates almost completely
+Temperature = 1.5 -> lower-probability choices become possible</code></pre>
+
+      <h2>Model File Formats: PyTorch Pickle vs. SafeTensors</h2>
+      <ul>
+        <li>When you download an AI model from the internet, it is usually stored in a file that contains billions of numerical weights.</li>
+        <li>In the early days of PyTorch, many models were saved as <code>.pt</code>, <code>.pth</code>, or <code>.bin</code> files using Python pickle.</li>
+      </ul>
+
+      <h3>The Historic Nightmare: <code>.pt</code>, <code>.pth</code>, <code>.bin</code> (Python Pickle)</h3>
+      <ul>
+        <li>Python pickle is not just a data format; it is a stack-based virtual machine.</li>
+        <li>It serializes Python objects and reconstructs them when the file is opened.</li>
+        <li>The key opcode is <code>R</code> for <code>REDUCE</code>, which takes a callable and arguments and then executes them.</li>
+        <li>That means a malicious model file can trigger arbitrary Python code during unpickling.</li>
+      </ul>
+
+      <div class="section-note">
+        This creates a serious supply-chain risk: an attacker uploads a malicious model to a model hub, the file is downloaded by an engineer or enterprise system, and the model loads hidden Python code automatically.
+      </div>
+
+      <h3>The Safe Fix: SafeTensors</h3>
+      <ul>
+        <li>SafeTensors was created to avoid this class of vulnerability.</li>
+        <li>It stores only raw tensor data in a simple, safe format.</li>
+        <li>It does not reconstruct Python objects and does not execute arbitrary code.</li>
+        <li>This makes it much safer for open-source distribution and enterprise model deployment.</li>
+      </ul>
+    </main>
+  </div>
+</body>
+</html>
